@@ -1,0 +1,9 @@
+apiVersion: portworx.com/v1alpha1
+type: Cluster
+metadata:
+  name: px-demo
+  namespace: kube-system
+spec:
+  kvdb:
+    endpoints:
+    - etcd://<ETCD_NODE1_IP>:<ETCD_NODE1_PORT>
