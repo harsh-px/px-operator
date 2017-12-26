@@ -6,11 +6,15 @@
 
 Portworx operator orchestrates the installation, upgrade and monitoring of a Portworx cluster in your Kubernetes Cluster.
 
-# Usage
+## Usage
 
-See [Building and Running the Portworx Operator](doc/build/README.md)
+See [Building and Running the Portworx Operator](doc/build/README.md).
 
-# Contributing
+## Issues
+
+For requesting improvements, new features or bugs please open an [issue](https://github.com/harsh-px/px-operator/issues).
+
+## Contributing
 
 The specification and code is licensed under the Apache 2.0 license found in the LICENSE file of this repository.
 
