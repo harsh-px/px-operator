@@ -1,0 +1,6 @@
+glide
+*.a
+bin/
+dist/
+.DS_Store
+.idea
