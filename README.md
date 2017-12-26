@@ -14,6 +14,7 @@ See [Building and Running the Portworx Operator](doc/build/README.md)
 
 The specification and code is licensed under the Apache 2.0 license found in the LICENSE file of this repository.
 
-# Contact
+## Join us on Slack!
+[![](/doc/media//slack.png)](http://slack.portworx.com)
 
- [![](doc/media/slack.png){:height="48px" width="48px" alt="Slack" .slack-icon}](http://slack.portworx.com)
+[Contact us](http://portworx.com/contact-us/) to share feedback, work with us, and to request features.
