@@ -1,2 +1,4 @@
 package: github.com/harsh-px/px-operator
-import: []
+import:
+- package: k8s.io/code-generator
+  version: 42f0582fc47a42652cfb1d4ea5d5306f765507e5

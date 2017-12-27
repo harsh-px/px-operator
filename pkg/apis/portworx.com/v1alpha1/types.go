@@ -4,6 +4,10 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +genclient
+// +genclient:noStatus
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // Cluster describes a Portworx cluster
 type Cluster struct {
 	meta.TypeMeta   `json:",inline"`
@@ -14,6 +18,8 @@ type Cluster struct {
 	// +optional
 	Status ClusterStatus `json:"status,omitempty"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterList is a list of Cluster objects in Kubernetes
 type ClusterList struct {
