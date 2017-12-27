@@ -1,4 +1,8 @@
 package: github.com/harsh-px/px-operator
 import:
+- package: k8s.io/gengo
+  repo:    git@github.com:openshift/kubernetes-gengo
+  version: openshift-3.9
 - package: k8s.io/code-generator
-  version: 42f0582fc47a42652cfb1d4ea5d5306f765507e5
+  repo:    git@github.com:openshift/kubernetes-code-generator
+  version: release-1.9.0-beta.1

@@ -38,6 +38,7 @@ LDFLAGS :=-ldflags "-X main.PX_OPERATOR_VERSION=$(VERSION) -extldflags '-z relro
 # Package target
 PACKAGE :=$(DIR)/dist/$(APP_NAME)-$(VERSION).$(GOOS).$(ARCH).tar.gz
 PKGS=$(shell go list ./... | grep -v vendor)
+GOVET_PKGS=$(shell  go list ./... | grep -v vendor | grep -v pkg/client/informers/externalversions | grep -v versioned)
 
 BASE_DIR := $(shell git rev-parse --show-toplevel)
 
@@ -75,7 +76,7 @@ name:
 package:
 	@echo $(PACKAGE)
 
-operator: glide.lock vendor
+operator: glide.lock vendor codegen
 	mkdir -p $(BIN)
 	go build $(LDFLAGS) -o $(BIN)/$(APP_NAME) cmd/operator/main.go
 
@@ -91,16 +92,22 @@ clean:
 	rm -rf dist
 
 fmt:
-	@echo -e "Performing gofmt on following: $(PKGS)"
+	@echo "Performing gofmt on following: $(PKGS)"
 	@./hack/do-gofmt.sh $(PKGS)
 
 checkfmt:
-	@echo -e "Checking gofmt on following: $(PKGS)"
+	@echo "Checking gofmt on following: $(PKGS)"
 	@./hack/check-gofmt.sh $(PKGS)
 
 lint:
+	@echo "golint"
 	go get -v github.com/golang/lint/golint
-	for file in $$(find . -name '*.go' | grep -v vendor | grep -v '\.pb\.go' | grep -v '\.pb\.gw\.go'); do \
+	for file in $$(find . -name '*.go' | grep -v vendor | \
+																			grep -v '\.pb\.go' | \
+																			grep -v '\.pb\.gw\.go' | \
+																			grep -v 'externalversions' | \
+																			grep -v 'versioned' | \
+																			grep -v 'generated'); do \
 		golint $${file}; \
 		if [ -n "$$(golint $${file})" ]; then \
 			exit 1; \
@@ -108,13 +115,23 @@ lint:
 	done
 
 vet:
-	go vet $(PKGS)
+	@echo "govet"
+	go vet $(GOVET_PKGS)
 
 errcheck:
+	@echo "errcheck"
 	go get -v github.com/kisielk/errcheck
-	errcheck -tags "$(TAGS)" $(PKGS)
+	errcheck -tags "$(TAGS)" $(GOVET_PKGS)
 
-pretest: checkfmt lint vet errcheck
+codegen:
+	@echo "Generating files"
+	@./hack/update-codegen.sh
+
+verifycodegen:
+	@echo "Verifying generated files"
+	@./hack/verify-codegen.sh
+
+pretest: checkfmt vet lint errcheck verifycodegen
 
 $(PACKAGE): all
 	@echo Packaging Binaries...

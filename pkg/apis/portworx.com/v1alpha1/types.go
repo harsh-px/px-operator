@@ -29,20 +29,24 @@ type ClusterList struct {
 	Items []Cluster `json:"items"`
 }
 
-// Specification for a Cluster
+// ClusterSpec defines the specification for a Cluster
 type ClusterSpec struct {
-	// Specific image to use on all nodes of the cluster.
+	// Image is the specific image to use on all nodes of the cluster.
 	// +optional
 	Image string `json:"image,omitempty"`
 
-	// All nodes participating in this cluster
+	// Nodes are all Portworx nodes participating in this cluster
 	Nodes []NodeSpec `json:"nodes,omitempty"`
 }
 
+// ClusterStatus is the status of the Portworx cluster
 type ClusterStatus struct {
+	// StatusInfo
 	StatusInfo
-	Conditions   []ClusterCondition `json:"conditions,omitempty"`
-	NodeStatuses []NodeStatus       `json:"nodeStatuses,omitempty"`
+	// Conditions
+	Conditions []ClusterCondition `json:"conditions,omitempty"`
+	// NodeStatuses
+	NodeStatuses []NodeStatus `json:"nodeStatuses,omitempty"`
 }
 
 // Node defines a single instance of available storage on a
@@ -51,7 +55,8 @@ type ClusterStatus struct {
 type Node struct {
 	meta.TypeMeta   `json:",inline"`
 	meta.ObjectMeta `json:"metadata,omitempty"`
-	Spec            NodeSpec `json:"spec,omitempty"`
+	// Spec
+	Spec NodeSpec `json:"spec,omitempty"`
 
 	// Status represents the current status of the storage node
 	// +optional
@@ -63,6 +68,7 @@ type NodeList struct {
 	meta.TypeMeta `json:",inline"`
 	meta.ListMeta `json:"metadata,omitempty"`
 
+	// Items
 	Items []Node `json:"items"`
 }
 
@@ -91,12 +97,14 @@ type NodeNetwork struct {
 	Mgmt string `json:"mgmt"`
 }
 
+// StatusCondition is data type for representation status event
 type StatusCondition struct {
 	Time    meta.Time `json:"time,omitempty"`
 	Message string    `json:"message,omitempty"`
 	Reason  string    `json:"reason,omitempty"`
 }
 
+// StatusInfo represents status of a cluster or a node
 type StatusInfo struct {
 	Ready bool `json:"ready"`
 
@@ -105,30 +113,40 @@ type StatusInfo struct {
 	Reason  string `json:"reason,omitempty"`
 }
 
+// ClusterConditionType represents the state of the cluster
 type ClusterConditionType string
 
 const (
-	ClusterConditionReady   ClusterConditionType = "Ready"
+	// ClusterConditionReady represents ready state of cluster
+	ClusterConditionReady ClusterConditionType = "Ready"
+	// ClusterConditionOffline represents offline state of cluster
 	ClusterConditionOffline ClusterConditionType = "Offline"
 )
 
+// ClusterCondition represents condition of a cluster
 type ClusterCondition struct {
+	// StatusCondition
 	StatusCondition
 	Type ClusterConditionType `json:"type,omitempty"`
 }
 
+// NodeConditionType represents the state of a cluster node
 type NodeConditionType string
 
 const (
-	NodeConditionReady   NodeConditionType = "Ready"
+	// NodeConditionReady represents ready state of a cluster node
+	NodeConditionReady NodeConditionType = "Ready"
+	// NodeConditionOffline represents offline state of a cluster node
 	NodeConditionOffline NodeConditionType = "Offline"
 )
 
+// NodeCondition represents the condition of a node
 type NodeCondition struct {
 	StatusCondition
 	Type NodeConditionType `json:"type,omitempty"`
 }
 
+// NodeStatus represents status of a cluster node
 type NodeStatus struct {
 	StatusInfo
 	Added      bool            `json:"added,omitempty"`
