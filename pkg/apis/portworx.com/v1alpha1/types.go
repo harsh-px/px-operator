@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -12,9 +13,8 @@ import (
 type Cluster struct {
 	meta.TypeMeta   `json:",inline"`
 	meta.ObjectMeta `json:"metadata,omitempty"`
-	Spec            ClusterSpec `json:"spec,omitempty"`
+	Spec            ClusterSpec `json:"spec"`
 
-	// Status represents the current status of the Portworx cluster
 	// +optional
 	Status ClusterStatus `json:"status,omitempty"`
 }
@@ -31,22 +31,33 @@ type ClusterList struct {
 
 // ClusterSpec defines the specification for a Cluster
 type ClusterSpec struct {
+	// Kvdb is the key value store configuration
+	Kvdb KvdbSpec `json:"kvdb"`
 	// Image is the specific image to use on all nodes of the cluster.
 	// +optional
 	Image string `json:"image,omitempty"`
+	// Network specifies the networking setting to be used for all nodes. This
+	// can be overridden by individual nodes in the NodeSpec
+	Network NodeNetwork `json:"network,omitempty"`
+	// Storage specifies the storage configuration to be used for all nodes.
+	// This can be overridden by individual nodes in the NodeSpec
+	Storage StorageSpec `json:"storage,omitempty"`
+	Nodes   []NodeSpec  `json:"nodes,omitempty"`
+	Env     []v1.EnvVar `json:"env,omitempty"`
+}
 
-	// Nodes are all Portworx nodes participating in this cluster
-	Nodes []NodeSpec `json:"nodes,omitempty"`
+// Nodes are all Portworx nodes participating in this cluster
+
+// KvdbSpec defines the kvdb configuration
+type KvdbSpec struct {
+	Endpoints []string `json:"endpoints"`
 }
 
 // ClusterStatus is the status of the Portworx cluster
 type ClusterStatus struct {
-	// StatusInfo
 	StatusInfo
-	// Conditions
-	Conditions []ClusterCondition `json:"conditions,omitempty"`
-	// NodeStatuses
-	NodeStatuses []NodeStatus `json:"nodeStatuses,omitempty"`
+	Conditions   []ClusterCondition `json:"conditions,omitempty"`
+	NodeStatuses []NodeStatus       `json:"nodeStatuses,omitempty"`
 }
 
 // Node defines a single instance of available storage on a
@@ -55,8 +66,7 @@ type ClusterStatus struct {
 type Node struct {
 	meta.TypeMeta   `json:",inline"`
 	meta.ObjectMeta `json:"metadata,omitempty"`
-	// Spec
-	Spec NodeSpec `json:"spec,omitempty"`
+	Spec            NodeSpec `json:"spec,omitempty"`
 
 	// Status represents the current status of the storage node
 	// +optional
@@ -67,27 +77,16 @@ type Node struct {
 type NodeList struct {
 	meta.TypeMeta `json:",inline"`
 	meta.ListMeta `json:"metadata,omitempty"`
-
-	// Items
-	Items []Node `json:"items"`
+	Items         []Node `json:"items"`
 }
 
 // NodeSpec holds specification parameters for a Node.
 type NodeSpec struct {
-	// Request the storage node be scheduled on a specific node
-	// Must have set either Node or NodeSelector
 	// +optional
-	Name string `json:"name,omitempty"`
-
-	// Storage network if any
-	Network *NodeNetwork `json:"network,omitempty"`
-
-	// Raw block devices available on the Node to be used for storage.
-	// Devices or Directories must be set and their use are specific to
-	// the implementation
-	// Must have set either Devices or Directories
-	// +optional
-	Devices []string `json:"devices,omitempty"`
+	Name    string      `json:"name,omitempty"`
+	Network NodeNetwork `json:"network,omitempty"`
+	Storage StorageSpec `json:"storage,omitempty"`
+	Env     []v1.EnvVar `json:"env,omitempty"`
 }
 
 // NodeNetwork specifies which network interfaces the Node should use for data
@@ -95,6 +94,15 @@ type NodeSpec struct {
 type NodeNetwork struct {
 	Data string `json:"data"`
 	Mgmt string `json:"mgmt"`
+}
+
+// StorageSpec specifies the storage configuration for a node
+type StorageSpec struct {
+	Devices             []string `json:"devices,omitempty"`
+	ZeroStorage         bool     `json:"zeroStorage,omitempty"`
+	Force               bool     `json:"force,omitempty"`
+	UseAll              bool     `json:"useAll,omitempty"`
+	UseAllWithParitions bool     `json:"useAllWithParitions,omitempty"`
 }
 
 // StatusCondition is data type for representation status event

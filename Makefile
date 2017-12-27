@@ -3,7 +3,9 @@
 #          https://raw.githubusercontent.com/lpabon/quartermaster/dev/Makefile
 #
 
-.PHONY: version all operator run dist clean
+.PHONY: version all operator run clean container deploy
+
+OPERATOR_IMG=$(DOCKER_HUB_REPO)/$(DOCKER_HUB_OPERATOR_IMAGE):$(DOCKER_HUB_TAG)
 
 APP_NAME := operator
 SHA := $(shell git rev-parse --short HEAD)
@@ -35,8 +37,6 @@ GO=go
 EXECUTABLES :=$(APP_NAME)
 # Build Binaries setting main.version and main.build vars
 LDFLAGS :=-ldflags "-X main.PX_OPERATOR_VERSION=$(VERSION) -extldflags '-z relro -z now'"
-# Package target
-PACKAGE :=$(DIR)/dist/$(APP_NAME)-$(VERSION).$(GOOS).$(ARCH).tar.gz
 PKGS=$(shell go list ./... | grep -v vendor)
 GOVET_PKGS=$(shell  go list ./... | grep -v vendor | grep -v pkg/client/informers/externalversions | grep -v versioned)
 
@@ -47,22 +47,22 @@ GOFMT := gofmt
 
 .DEFAULT: all
 
-all: pretest operator
+all: clean pretest operator
 
-vendor: glide.lock
-ifndef GLIDEPATH
-	echo "Installing Glide"
-	curl https://glide.sh/get | sh
-endif
-	echo "Installing vendor directory"
-	glide install -v
+#vendor: glide.lock
+#ifndef GLIDEPATH
+#	echo "Installing Glide"
+#	curl https://glide.sh/get | sh
+#endif
+#	echo "Installing vendor directory"
+#	glide install -v
 
-	echo "Building dependencies to make builds faster"
-	go install github.com/harsh-px/px-operator/cmd/operator
+#	echo "Building dependencies to make builds faster"
+#	go install github.com/harsh-px/px-operator/cmd/operator
 
-glide.lock: glide.yaml
-	echo "Glide.yaml has changed, updating glide.lock"
-	glide update -v
+#glide.lock: glide.yaml
+#	echo "Glide.yaml has changed, updating glide.lock"
+#	glide update -v
 
 # print the version
 version:
@@ -76,7 +76,7 @@ name:
 package:
 	@echo $(PACKAGE)
 
-operator: glide.lock vendor codegen
+operator: vendor codegen
 	mkdir -p $(BIN)
 	go build $(LDFLAGS) -o $(BIN)/$(APP_NAME) cmd/operator/main.go
 
@@ -86,10 +86,7 @@ run: operator
 test:
 	go test -tags "$(TAGS)" $(TESTFLAGS) $(PKGS)
 
-clean:
-	@echo Cleaning Workspace...
-	-sudo rm -rf $(BIN)
-	rm -rf dist
+
 
 fmt:
 	@echo "Performing gofmt on following: $(PKGS)"
@@ -133,17 +130,12 @@ verifycodegen:
 
 pretest: checkfmt vet lint errcheck verifycodegen
 
-$(PACKAGE): all
-	@echo Packaging Binaries...
-	@mkdir -p tmp/$(APP_NAME)
-	@cp $(BIN)/$(APP_NAME) tmp/$(APP_NAME)/
-	@mkdir -p $(DIR)/dist/
-	tar -czf $@ -C tmp $(APP_NAME);
-	@rm -rf tmp
-	@echo
-	@echo Package $@ saved in dist directory
+container:
+	@echo "Building container: docker build --tag $(OPERATOR_IMG) -f Dockerfile ."
+	sudo docker build --tag $(OPERATOR_IMG) -f Dockerfile .
 
-dist: $(PACKAGE) $(CLIENT_PACKAGE)
+deploy: container
+	sudo docker push $(OPERATOR_IMG)
 
 docker-build:
 	docker build -t px/docker-build -f Dockerfile.build .
@@ -157,3 +149,10 @@ docker-build:
 		px/docker-build make all
 
 .PHONY: test clean name run version
+
+clean:
+	@echo Cleaning Workspace...
+	-sudo rm -rf $(BIN)
+	@echo "Deleting image "$(OPERATOR_IMG)
+	-docker rmi -f $(OPERATOR_IMG)
+	go clean -i $(PKGS)
