@@ -29,6 +29,6 @@ ${CODEGEN_PKG}/generate-groups.sh \
 	all \
   github.com/harsh-px/px-operator/pkg/client \
 	github.com/harsh-px/px-operator/pkg/apis \
-  "portworx.com:v1alpha1"
+  "portworx.com:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 #  --output-base "$(dirname ${BASH_SOURCE})/../../.."
-#  --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
