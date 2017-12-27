@@ -130,7 +130,7 @@ verifycodegen:
 
 pretest: checkfmt vet lint errcheck verifycodegen
 
-container: operator
+container:
 	@echo "Building container: docker build --tag $(OPERATOR_IMG) -f Dockerfile ."
 	sudo docker build --tag $(OPERATOR_IMG) -f Dockerfile .
 
