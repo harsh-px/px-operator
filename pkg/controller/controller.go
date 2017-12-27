@@ -99,6 +99,7 @@ func New(
 	return controller
 }
 
+// CreateRecorder creates a event recorder
 func CreateRecorder(kubecli kubernetes.Interface, name, namespace string) record.EventRecorder {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)

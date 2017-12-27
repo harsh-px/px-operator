@@ -14,6 +14,7 @@ import (
 	informers "github.com/harsh-px/px-operator/pkg/client/informers/externalversions"
 	"github.com/harsh-px/px-operator/pkg/controller"
 	"github.com/sirupsen/logrus"
+	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection"
@@ -73,7 +74,11 @@ func main() {
 
 	// TODO add /metrics endpoint
 	http.HandleFunc(probe.HTTPReadyzEndpoint, probe.ReadyzHandler)
-	go http.ListenAndServe(listenAddr, nil)
+	go func() {
+		if err := http.ListenAndServe(listenAddr, nil); err != nil {
+			logrus.Fatalf("failed to listen of endpoint: %s", listenAddr)
+		}
+	}()
 
 	rl, err := resourcelock.New(resourcelock.EndpointsResourceLock,
 		namespace,
@@ -123,7 +128,7 @@ func run(stopCh <-chan struct{}) {
 	go kubeInformerFactory.Start(stopCh)
 	go operatorInformerFactory.Start(stopCh)
 
-	err := c.Run(2, stopCh)
+	err = c.Run(2, stopCh)
 	logrus.Fatalf("controller Run() failed: %v", err)
 }
 
