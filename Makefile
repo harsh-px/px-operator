@@ -145,4 +145,15 @@ $(PACKAGE): all
 
 dist: $(PACKAGE) $(CLIENT_PACKAGE)
 
+docker-build:
+	docker build -t px/docker-build -f Dockerfile.build .
+	@echo "Building px operator using docker"
+	docker run \
+		--privileged \
+		-v $(shell pwd):/go/src/github.com/harsh-px/px-operator \
+		-e DOCKER_HUB_REPO=$(DOCKER_HUB_REPO) \
+		-e DOCKER_HUB_TORPEDO_IMAGE=$(DOCKER_HUB_TORPEDO_IMAGE) \
+		-e DOCKER_HUB_TAG=$(DOCKER_HUB_TAG) \
+		px/docker-build make all
+
 .PHONY: test clean name run version
