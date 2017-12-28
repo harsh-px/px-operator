@@ -14,7 +14,6 @@ import (
 	listers "github.com/harsh-px/px-operator/pkg/client/listers/portworx.com/v1alpha1"
 	"github.com/harsh-px/px-operator/pkg/crd"
 	"github.com/sirupsen/logrus"
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -83,7 +82,7 @@ func New(
 	pxInformer := pxoperatorInformerFactory.Portworx().V1alpha1().Clusters()
 
 	// Add portworx types to the default Kubernetes Scheme so Events can be
-	// logged for sample-controller types.
+	// logged for them
 	samplescheme.AddToScheme(scheme.Scheme)
 
 	resources := []crd.CustomResource{
@@ -103,12 +102,14 @@ func New(
 		apiExtClientset:     apiExtClientset,
 		clustersLister:      pxInformer.Lister(),
 		clustersSynced:      pxInformer.Informer().HasSynced,
-		workqueue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Clusters"),
-		recorder:            CreateRecorder(kubeclientset, controllerAgentName, ""),
-		resources:           resources,
+		workqueue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "Clusters"),
+		recorder:  CreateRecorder(kubeclientset, controllerAgentName, ""),
+		resources: resources,
 	}
 
 	logrus.Info("Setting up event handlers")
+
 	// Set up an event handler for when Cluster resources change
 	pxInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.onAddEvent,
@@ -121,6 +122,7 @@ func New(
 
 func (c *Controller) onAddEvent(obj interface{}) {
 	logrus.Infof("[debug] On add event: %v", obj)
+	// TODO add gatekeeper check to ensure only one cluster is running
 	c.enqueueCluster(obj)
 }
 
@@ -133,12 +135,60 @@ func (c *Controller) onDeleteEvent(obj interface{}) {
 	logrus.Infof("[debug] On delete event: %v", obj)
 }
 
-// CreateRecorder creates a event recorder
-func CreateRecorder(kubecli kubernetes.Interface, name, namespace string) record.EventRecorder {
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(logrus.Infof)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubecli.Core().RESTClient()).Events(namespace)})
-	return eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: name})
+// handleObject will take any resource implementing metav1.Object and attempt
+// to find the Cluster resource that 'owns' it. It does this by looking at the
+// objects metadata.ownerReferences field for an appropriate OwnerReference.
+// It then enqueues that Cluster resource to be processed. If the object does not
+// have an appropriate OwnerReference, it will simply be skipped.
+func (c *Controller) handleObject(obj interface{}) {
+	var object metav1.Object
+	var ok bool
+	if object, ok = obj.(metav1.Object); !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			runtime.HandleError(fmt.Errorf("error decoding object, invalid type"))
+			return
+		}
+		object, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			runtime.HandleError(fmt.Errorf("error decoding object tombstone, invalid type"))
+			return
+		}
+		logrus.Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+	}
+
+	logrus.Infof("Processing object: %s", object.GetName())
+	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
+		// If this object is not owned by a Cluster, we should not do anything more
+		// with it.
+		if ownerRef.Kind != "Cluster" {
+			logrus.Infof("[debug] Ignoring object %s since we don't own it", ownerRef.Name)
+			return
+		}
+
+		cluster, err := c.clustersLister.Clusters(object.GetNamespace()).Get(ownerRef.Name)
+		if err != nil {
+			logrus.Infof("ignoring orphaned object '%s' of cluster '%s'", object.GetSelfLink(), ownerRef.Name)
+			return
+		}
+
+		c.enqueueCluster(cluster)
+		return
+	}
+}
+
+// enqueueCluster takes a Cluster resource and converts it into a namespace/name
+// string which is then put onto the work queue. This method should *not* be
+// passed resources of any type other than Cluster.
+func (c *Controller) enqueueCluster(obj interface{}) {
+	var key string
+	var err error
+	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
+		runtime.HandleError(err)
+		return
+	}
+
+	c.workqueue.AddRateLimited(key)
 }
 
 // Run will set up the event handlers for types we are interested in, as well
@@ -192,7 +242,7 @@ func (c *Controller) runWorker() {
 }
 
 // processNextWorkItem will read a single work item off the workqueue and
-// attempt to process it, by calling the syncHandler.
+// attempt to process it, by calling the sync.
 func (c *Controller) processNextWorkItem() bool {
 	obj, shutdown := c.workqueue.Get()
 
@@ -224,9 +274,9 @@ func (c *Controller) processNextWorkItem() bool {
 			runtime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
 			return nil
 		}
-		// Run the syncHandler, passing it the namespace/name string of the
+		// Run the sync, passing it the namespace/name string of the
 		// custom resource (e.g PX cluster) to be synced.
-		if err := c.syncHandler(key); err != nil {
+		if err := c.sync(key); err != nil {
 			return fmt.Errorf("error syncing '%s': %s", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
@@ -244,10 +294,10 @@ func (c *Controller) processNextWorkItem() bool {
 	return true
 }
 
-// syncHandler compares the actual state with the desired, and attempts to
+// sync compares the actual state with the desired, and attempts to
 // converge the two. It then updates the Status block of the Cluster resource
 // with the current status of the resource.
-func (c *Controller) syncHandler(key string) error {
+func (c *Controller) sync(key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -296,7 +346,7 @@ func (c *Controller) syncHandler(key string) error {
 
 	// Finally, we update the status block of the Cluster resource to reflect the
 	// current state of the world
-	err = c.updateClusterStatus(cluster, nil)
+	err = c.updateClusterStatus(cluster)
 	if err != nil {
 		return err
 	}
@@ -306,7 +356,7 @@ func (c *Controller) syncHandler(key string) error {
 }
 
 // TODO fix the signature based on px objects
-func (c *Controller) updateClusterStatus(cluster *api.Cluster, deployment *appsv1beta2.Deployment) error {
+func (c *Controller) updateClusterStatus(cluster *api.Cluster) error {
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
@@ -318,57 +368,11 @@ func (c *Controller) updateClusterStatus(cluster *api.Cluster, deployment *appsv
 	return err
 }
 
-// enqueueCluster takes a Cluster resource and converts it into a namespace/name
-// string which is then put onto the work queue. This method should *not* be
-// passed resources of any type other than Cluster.
-func (c *Controller) enqueueCluster(obj interface{}) {
-	var key string
-	var err error
-	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
-		runtime.HandleError(err)
-		return
-	}
-	c.workqueue.AddRateLimited(key)
-}
-
-// handleObject will take any resource implementing metav1.Object and attempt
-// to find the Cluster resource that 'owns' it. It does this by looking at the
-// objects metadata.ownerReferences field for an appropriate OwnerReference.
-// It then enqueues that Cluster resource to be processed. If the object does not
-// have an appropriate OwnerReference, it will simply be skipped.
-func (c *Controller) handleObject(obj interface{}) {
-	var object metav1.Object
-	var ok bool
-	if object, ok = obj.(metav1.Object); !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			runtime.HandleError(fmt.Errorf("error decoding object, invalid type"))
-			return
-		}
-		object, ok = tombstone.Obj.(metav1.Object)
-		if !ok {
-			runtime.HandleError(fmt.Errorf("error decoding object tombstone, invalid type"))
-			return
-		}
-		logrus.Infof("Recovered deleted object '%s' from tombstone", object.GetName())
-	}
-
-	logrus.Infof("Processing object: %s", object.GetName())
-	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
-		// If this object is not owned by a Cluster, we should not do anything more
-		// with it.
-		if ownerRef.Kind != "Cluster" {
-			logrus.Infof("[debug] Ignoring object %s since we don't own it", ownerRef.Name)
-			return
-		}
-
-		cluster, err := c.clustersLister.Clusters(object.GetNamespace()).Get(ownerRef.Name)
-		if err != nil {
-			logrus.Infof("ignoring orphaned object '%s' of cluster '%s'", object.GetSelfLink(), ownerRef.Name)
-			return
-		}
-
-		c.enqueueCluster(cluster)
-		return
-	}
+// CreateRecorder creates a event recorder
+func CreateRecorder(kubecli kubernetes.Interface, name, namespace string) record.EventRecorder {
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(logrus.Infof)
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
+		Interface: v1core.New(kubecli.Core().RESTClient()).Events(namespace)})
+	return eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: name})
 }
