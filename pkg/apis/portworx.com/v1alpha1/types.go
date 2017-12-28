@@ -12,7 +12,7 @@ import (
 type Cluster struct {
 	meta.TypeMeta   `json:",inline"`
 	meta.ObjectMeta `json:"metadata,omitempty"`
-	Spec            ClusterSpec `json:"spec,omitempty"`
+	Spec            ClusterSpec `json:"spec"`
 
 	// Status represents the current status of the Portworx cluster
 	// +optional
@@ -31,12 +31,19 @@ type ClusterList struct {
 
 // ClusterSpec defines the specification for a Cluster
 type ClusterSpec struct {
+	// Kvdb is the key value store configuration
+	Kvdb KvdbSpec `json:"kvdb"`
 	// Image is the specific image to use on all nodes of the cluster.
 	// +optional
 	Image string `json:"image,omitempty"`
 
 	// Nodes are all Portworx nodes participating in this cluster
 	Nodes []NodeSpec `json:"nodes,omitempty"`
+}
+
+// KvdbSpec defines the kvdb configuration
+type KvdbSpec struct {
+	Endpoints []string `json:"endpoints"`
 }
 
 // ClusterStatus is the status of the Portworx cluster
