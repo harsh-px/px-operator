@@ -1,5 +1,5 @@
 hash: 55f97e3c6e989e2faa8c28c06f9fbdbfe6c2641a8e2056d3443513c05944c05f
-updated: 2017-12-27T14:33:26.739032552-08:00
+updated: 2017-12-27T16:57:24.587218776-08:00
 imports:
 - name: github.com/coreos/etcd-operator
   version: 9caf18bdff18ab8c790ea54f41074d88c901f5b7

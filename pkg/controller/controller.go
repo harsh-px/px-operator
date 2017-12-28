@@ -2,17 +2,21 @@ package controller
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
+	portworx "github.com/harsh-px/px-operator/pkg/apis/portworx.com"
 	api "github.com/harsh-px/px-operator/pkg/apis/portworx.com/v1alpha1"
 	clientset "github.com/harsh-px/px-operator/pkg/client/clientset/versioned"
 	"github.com/harsh-px/px-operator/pkg/client/clientset/versioned/scheme"
 	samplescheme "github.com/harsh-px/px-operator/pkg/client/clientset/versioned/scheme"
 	informers "github.com/harsh-px/px-operator/pkg/client/informers/externalversions"
 	listers "github.com/harsh-px/px-operator/pkg/client/listers/portworx.com/v1alpha1"
+	opkit "github.com/rook/operator-kit"
 	"github.com/sirupsen/logrus"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -25,7 +29,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const controllerAgentName = "sample-controller"
+const controllerAgentName = "px-operator"
 
 const (
 	// SuccessSynced is used as part of the Event 'reason' when a Cluster is synced
@@ -41,6 +45,20 @@ const (
 	// is synced successfully
 	MessageResourceSynced = "Cluster synced successfully"
 )
+
+const (
+	CustomResourceName       = "cluster"
+	CustomResourceNamePlural = "clusters"
+)
+
+var ClusterResource = opkit.CustomResource{
+	Name:    CustomResourceName,
+	Plural:  CustomResourceNamePlural,
+	Group:   portworx.GroupName,
+	Version: portworx.Version,
+	Scope:   apiextensionsv1beta1.NamespaceScoped,
+	Kind:    reflect.TypeOf(api.Cluster{}).Name(),
+}
 
 // Controller is the controller implementation for Cluster resources
 type Controller struct {
