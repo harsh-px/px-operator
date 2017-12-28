@@ -12,11 +12,12 @@ import (
 	samplescheme "github.com/harsh-px/px-operator/pkg/client/clientset/versioned/scheme"
 	informers "github.com/harsh-px/px-operator/pkg/client/informers/externalversions"
 	listers "github.com/harsh-px/px-operator/pkg/client/listers/portworx.com/v1alpha1"
-	opkit "github.com/rook/operator-kit"
+	"github.com/harsh-px/px-operator/pkg/crd"
 	"github.com/sirupsen/logrus"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -46,26 +47,14 @@ const (
 	MessageResourceSynced = "Cluster synced successfully"
 )
 
-const (
-	CustomResourceName       = "cluster"
-	CustomResourceNamePlural = "clusters"
-)
-
-var ClusterResource = opkit.CustomResource{
-	Name:    CustomResourceName,
-	Plural:  CustomResourceNamePlural,
-	Group:   portworx.GroupName,
-	Version: portworx.Version,
-	Scope:   apiextensionsv1beta1.NamespaceScoped,
-	Kind:    reflect.TypeOf(api.Cluster{}).Name(),
-}
-
 // Controller is the controller implementation for Cluster resources
 type Controller struct {
 	// kubeclientset is a standard kubernetes clientset
 	kubeclientset kubernetes.Interface
 	// pxoperatorclientset is a clientset for our own API group
 	pxoperatorclientset clientset.Interface
+
+	apiExtClientset apiextensionsclient.Interface
 
 	clustersLister listers.ClusterLister
 	clustersSynced cache.InformerSynced
@@ -78,13 +67,15 @@ type Controller struct {
 	workqueue workqueue.RateLimitingInterface
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
-	recorder record.EventRecorder
+	recorder  record.EventRecorder
+	resources []crd.CustomResource
 }
 
 // New returns a new controller for managing portworx clusters
 func New(
 	kubeclientset kubernetes.Interface,
 	pxoperatorclientset clientset.Interface,
+	apiExtClientset apiextensionsclient.Interface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
 	pxoperatorInformerFactory informers.SharedInformerFactory) *Controller {
 
@@ -95,13 +86,26 @@ func New(
 	// logged for sample-controller types.
 	samplescheme.AddToScheme(scheme.Scheme)
 
+	resources := []crd.CustomResource{
+		{
+			Name:    "cluster",
+			Plural:  "clusters",
+			Group:   portworx.GroupName,
+			Version: portworx.Version,
+			Scope:   apiextensionsv1beta1.NamespaceScoped,
+			Kind:    reflect.TypeOf(api.Cluster{}).Name(),
+		},
+	}
+
 	controller := &Controller{
 		kubeclientset:       kubeclientset,
 		pxoperatorclientset: pxoperatorclientset,
+		apiExtClientset:     apiExtClientset,
 		clustersLister:      pxInformer.Lister(),
 		clustersSynced:      pxInformer.Informer().HasSynced,
 		workqueue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Clusters"),
 		recorder:            CreateRecorder(kubeclientset, controllerAgentName, ""),
+		resources:           resources,
 	}
 
 	logrus.Info("Setting up event handlers")
@@ -132,6 +136,18 @@ func CreateRecorder(kubecli kubernetes.Interface, name, namespace string) record
 func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer c.workqueue.ShutDown()
+
+	logrus.Infof("Registering custom resources: %#v", c.resources)
+	ctx := crd.Context{
+		Clientset:             c.kubeclientset,
+		APIExtensionClientset: c.apiExtClientset,
+		Interval:              500 * time.Millisecond,
+		Timeout:               60 * time.Second,
+	}
+	err := crd.CreateCRD(ctx, c.resources)
+	if err != nil {
+		logrus.Fatalf("failed to create CRD. Err: %v", err)
+	}
 
 	// Start the informer factories to begin populating the informer caches
 	logrus.Info("Starting controller")

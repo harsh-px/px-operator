@@ -47,22 +47,22 @@ GOFMT := gofmt
 
 .DEFAULT: all
 
-all: pretest operator
+all: clean pretest operator
 
-vendor: glide.lock
-ifndef GLIDEPATH
-	echo "Installing Glide"
-	curl https://glide.sh/get | sh
-endif
-	echo "Installing vendor directory"
-	glide install -v
+#vendor: glide.lock
+#ifndef GLIDEPATH
+#	echo "Installing Glide"
+#	curl https://glide.sh/get | sh
+#endif
+#	echo "Installing vendor directory"
+#	glide install -v
 
-	echo "Building dependencies to make builds faster"
-	go install github.com/harsh-px/px-operator/cmd/operator
+#	echo "Building dependencies to make builds faster"
+#	go install github.com/harsh-px/px-operator/cmd/operator
 
-glide.lock: glide.yaml
-	echo "Glide.yaml has changed, updating glide.lock"
-	glide update -v
+#glide.lock: glide.yaml
+#	echo "Glide.yaml has changed, updating glide.lock"
+#	glide update -v
 
 # print the version
 version:
@@ -76,7 +76,7 @@ name:
 package:
 	@echo $(PACKAGE)
 
-operator: glide.lock vendor codegen
+operator: vendor codegen
 	mkdir -p $(BIN)
 	go build $(LDFLAGS) -o $(BIN)/$(APP_NAME) cmd/operator/main.go
 

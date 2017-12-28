@@ -14,6 +14,7 @@ import (
 	informers "github.com/harsh-px/px-operator/pkg/client/informers/externalversions"
 	"github.com/harsh-px/px-operator/pkg/controller"
 	"github.com/sirupsen/logrus"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -116,6 +117,7 @@ func run(stopCh <-chan struct{}) {
 
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	operatorClient := clientset.NewForConfigOrDie(cfg)
+	apiExtClientset := apiextensionsclient.NewForConfigOrDie(cfg)
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	operatorInformerFactory := informers.NewSharedInformerFactory(operatorClient, time.Second*30)
@@ -123,7 +125,7 @@ func run(stopCh <-chan struct{}) {
 	// TODO: add chaos
 	//startChaos(context.Background(), cfg.KubeCli, cfg.Namespace, chaosLevel)
 
-	c := controller.New(kubeClient, operatorClient, kubeInformerFactory, operatorInformerFactory)
+	c := controller.New(kubeClient, operatorClient, apiExtClientset, kubeInformerFactory, operatorInformerFactory)
 
 	go kubeInformerFactory.Start(stopCh)
 	go operatorInformerFactory.Start(stopCh)
