@@ -6,9 +6,9 @@
 
 Portworx operator orchestrates the installation, upgrade and monitoring of a Portworx cluster in your Kubernetes Cluster.
 
-## Usage
-
-See [Building and Running the Portworx Operator](doc/build/README.md).
+## Documentation
+* [Building and Running the Portworx Operator](doc/build/README.md).
+* [Design](doc/design/README.md)
 
 ## Issues
 
