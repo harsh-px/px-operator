@@ -2,11 +2,11 @@
 
 ## Build
 
-### Compile
+#### Compile
 ```bash
 make docker-build
 ```
-### Build and push docker image
+#### Build and push docker image
 ```bash
 export DOCKER_HUB_REPO=<docker-repo> 
 export DOCKER_HUB_OPERATOR_IMAGE=px-operator
@@ -17,12 +17,12 @@ make deploy
 
 ## Test
 
-### Deploy the Portworx CRD
+#### Deploy the Portworx CRD
 ```bash
 kubectl create -f examples/px-crd.yaml
 ```
 
-### Deploy Portworx cluster
+#### Deploy Portworx cluster
 ```bash
 kubectl create -f examples/px-cluster.yaml
 ```
